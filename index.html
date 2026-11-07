@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bogotá 3D — CORREGIDO V2</title>
+<title>Bogotá 3D — Modelo Digital del Terreno 2025</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui,Arial,sans-serif;background:#1a1a2e;color:#fff}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui,Arial,sans-serif;background:#24272d;color:#fff}
 #globe{display:block;width:100vw;height:100vh}
 #loading,#error{position:absolute;z-index:10;top:50%;left:50%;transform:translate(-50%,-50%);padding:1.2rem 1.6rem;background:#111d;color:#fff;border-radius:8px;max-width:85vw;text-align:center}
 #error{display:none;background:#b62c23}
@@ -13,15 +13,29 @@
 #toolbar{position:absolute;right:12px;top:12px;z-index:5;display:flex;gap:8px}
 button{padding:9px 12px;border:0;border-radius:6px;cursor:pointer;background:#fff;color:#172233}
 #stats{position:absolute;bottom:12px;left:12px;z-index:5;background:#101826d9;padding:8px 11px;border-radius:6px;font-size:12px}
+select{padding:6px;border-radius:5px;border:0}
+.tb{display:flex;align-items:center;gap:6px;background:#101826d9;padding:4px 10px;border-radius:6px;font-size:13px}
+#toolbar{flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}
+@media (max-width:1100px){#info{top:auto;bottom:52px;max-width:280px;font-size:12px}}
+#compass{position:absolute;right:12px;top:64px;z-index:5;width:54px;height:54px;border-radius:50%;background:#101826d9;display:flex;align-items:center;justify-content:center}
+#needle{width:40px;height:40px}
+#attribution{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:#1a2533;background:#ffffffb3;padding:1px 6px;border-radius:3px}
+#attribution:empty{display:none}
+#legend{position:absolute;bottom:12px;right:12px;z-index:5;background:#101826d9;padding:10px 12px;border-radius:6px;font-size:12px;line-height:1.7}
+#legend i{display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:middle;border-radius:2px}
 </style>
 </head>
 <body>
 <canvas id="globe"></canvas>
 <div id="loading">Cargando terreno 3D…</div>
 <div id="error" role="alert"></div>
-<div id="info"><strong>Bogotá 3D — Modelo Digital del Terreno 2025 (CORREGIDO V2)</strong><div>Sector de 5 tiles · Fuente: IDECA / UAECD</div><div>Visualización parcial, no toda Bogotá.</div></div>
-<div id="toolbar"><button id="reset" type="button">Restablecer vista</button><button id="top" type="button">Vista superior</button></div>
+<div id="info"><strong>Bogotá 3D — Modelo Digital del Terreno 2025</strong><div>Franja de 20 × 100 km: occidente urbano de Bogotá y zona rural del sur.</div><div>No incluye los Cerros Orientales.</div><div style="opacity:.8;font-size:12px">MDT IDECA / UAECD · EPSG:9377 MAGNA-SIRGAS Origen Nacional</div></div>
+<div id="toolbar"><label class="tb">Mapa base <select id="basemap"><option value="satelite" selected>Satélite</option><option value="calles">Calles</option><option value="none">Ninguno</option></select></label><label class="tb">Capa <select id="layer"><option value="0">Elevación</option><option value="1">Pendiente</option></select></label><label class="tb"><input type="checkbox" id="contours"> Curvas cada <select id="interval"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select> m</label><button id="reset" type="button">Restablecer vista</button><button id="top" type="button">Vista superior</button></div>
+<div id="legend"></div>
+<div id="compass" title="Norte"><svg id="needle" viewBox="0 0 40 40"><polygon points="20,7 25,21 20,19 15,21" fill="#e74c3c"/><polygon points="20,33 25,21 20,23 15,21" fill="#e8eef5"/><text x="20" y="7" text-anchor="middle" font-size="8" font-weight="700" fill="#fff">N</text></svg></div>
+<div id="attribution"></div>
 <div id="stats">Esperando modelo…</div>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
@@ -31,16 +45,156 @@ const canvas=document.getElementById('globe');
 const loading=document.getElementById('loading');
 const errorDiv=document.getElementById('error');
 const stats=document.getElementById('stats');
-const scene=new THREE.Scene();scene.background=new THREE.Color(0xa8cce6);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x24272d); // fondo gris oscuro
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,1,1000000);
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
-const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.08;controls.screenSpacePanning=true;
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.08;controls.screenSpacePanning=true;controls.maxPolarAngle=Math.PI*0.46;
 scene.add(new THREE.HemisphereLight(0xffffff,0x65716a,2));
 const sun=new THREE.DirectionalLight(0xffffff,2);sun.position.set(5000,10000,7000);scene.add(sun);
 let terrain=null,bounds=null,size=null,center=null;
+// ===== Capas de análisis: elevación, pendiente y curvas de nivel =====
+const analysis={uMode:{value:0},uContours:{value:0},uInterval:{value:50},uMinE:{value:0},uMaxE:{value:1}};
+function applyAnalysis(mesh,minE,maxE){
+ analysis.uMinE.value=minE;analysis.uMaxE.value=maxE;
+ const m=mesh.material;
+ m.onBeforeCompile=shader=>{
+  Object.assign(shader.uniforms,analysis);
+  shader.vertexShader=shader.vertexShader
+   .replace('#include <common>','#include <common>\nvarying float vElev;\nvarying vec3 vObjNormal;')
+   .replace('#include <begin_vertex>','#include <begin_vertex>\nvElev=position.y;\nvObjNormal=normal;');
+  shader.fragmentShader=shader.fragmentShader
+   .replace('#include <common>',`#include <common>
+varying float vElev;
+varying vec3 vObjNormal;
+uniform int uMode;
+uniform int uContours;
+uniform float uInterval;
+uniform float uMinE;
+uniform float uMaxE;
+vec3 rampElev(float t){
+ vec3 c0=vec3(0.36,0.58,0.32),c1=vec3(0.75,0.78,0.45),c2=vec3(0.66,0.50,0.31),c3=vec3(0.95,0.95,0.95);
+ return t<0.4?mix(c0,c1,t/0.4):(t<0.8?mix(c1,c2,(t-0.4)/0.4):mix(c2,c3,(t-0.8)/0.2));
+}
+vec3 rampSlope(float s){
+ if(s<5.0)return vec3(0.18,0.55,0.25);
+ if(s<15.0)return vec3(0.60,0.80,0.30);
+ if(s<25.0)return vec3(0.98,0.85,0.25);
+ if(s<35.0)return vec3(0.95,0.50,0.15);
+ return vec3(0.80,0.15,0.12);
+}`)
+   .replace('#include <color_fragment>',`#include <color_fragment>
+{
+ vec3 base;
+ if(uMode==1){
+  float s=degrees(acos(clamp(abs(normalize(vObjNormal).y),0.0,1.0)));
+  base=rampSlope(s);
+ }else{
+  base=rampElev(clamp((vElev-uMinE)/(uMaxE-uMinE),0.0,1.0));
+ }
+ if(uContours==1){
+  float f=vElev/uInterval;
+  float line=1.0-smoothstep(0.0,1.2,abs(fract(f-0.5)-0.5)/max(fwidth(f),1e-5));
+  float fm=vElev/(uInterval*5.0);
+  float master=1.0-smoothstep(0.0,2.4,abs(fract(fm-0.5)-0.5)/max(fwidth(fm),1e-5));
+  base=mix(base,vec3(0.25,0.17,0.09),max(line*0.6,master*0.9));
+ }
+ diffuseColor.rgb=base;
+}`);
+ };
+ m.needsUpdate=true;
+}
+function updateLegend(){
+ const L=document.getElementById('legend');
+ if(analysis.uMode.value===1){
+  L.innerHTML='<b>Pendiente</b><br>'+[['#2e8c40','0 – 5°'],['#99cc4d','5 – 15°'],['#fad940','15 – 25°'],['#f28026','25 – 35°'],['#cc261f','> 35°']].map(([c,t])=>`<i style="background:${c}"></i>${t}`).join('<br>');
+ }else{
+  L.innerHTML=`<b>Elevación (m s.n.m.)</b><br><i style="width:140px;background:linear-gradient(90deg,#5c9452,#bfc773,#a8804f,#f2f2f2)"></i><br>${Math.round(analysis.uMinE.value)} – ${Math.round(analysis.uMaxE.value)} m`;
+ }
+ if(analysis.uContours.value)L.innerHTML+=`<br>Curvas cada ${analysis.uInterval.value} m · maestras cada ${analysis.uInterval.value*5} m`;
+}
+document.getElementById('layer').addEventListener('change',e=>{analysis.uMode.value=+e.target.value;updateLegend()});
+document.getElementById('contours').addEventListener('change',e=>{analysis.uContours.value=e.target.checked?1:0;updateLegend()});
+document.getElementById('interval').addEventListener('change',e=>{analysis.uInterval.value=+e.target.value;updateLegend()});
+// ===== Georreferenciación del modelo (EPSG:9377 — MAGNA-SIRGAS Origen Nacional) =====
+// El GLB está centrado en el centro de la franja de 5 tiles: E 4.870.000 · N 2.046.000.
+// Ejes del modelo: +X = Este, -Z = Norte, Y = elevación (m).
+const GEO={e0:4870000,n0:2046000};
+proj4.defs('EPSG:9377','+proj=tmerc +lat_0=4 +lon_0=-73 +k=0.9992 +x_0=5000000 +y_0=2000000 +ellps=GRS80 +units=m +no_defs');
+const toLonLat=(x,z)=>proj4('EPSG:9377','EPSG:4326',[GEO.e0+x,GEO.n0-z]);
+
+// ===== Mapa base de fondo =====
+const BASEMAPS={
+ calles:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',attr:'Mapa base © Esri, HERE, Garmin, © colaboradores de OpenStreetMap · Relieve: Terrarium / AWS Open Data'},
+ satelite:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attr:'Imágenes © Esri, Maxar, Earthstar Geographics · Relieve: Terrarium / AWS Open Data'}
+};
+const basemapCache={};let basemapMesh=null,localBounds=null;
+const lon2tx=(lon,z)=>(lon+180)/360*2**z;
+const lat2ty=(lat,z)=>{const r=lat*Math.PI/180;return(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*2**z};
+const BASE_DROP=120;
+async function buildBasemap(key){
+ const lb=localBounds,Z=12,MX=22000,MZ=6000;
+ const x0=lb.min.x-MX,x1=lb.max.x+MX,z0=lb.min.z-MZ,z1=lb.max.z+MZ;
+ const c=[[x0,z0],[x1,z0],[x0,z1],[x1,z1]].map(([x,z])=>toLonLat(x,z));
+ const lons=c.map(v=>v[0]),lats=c.map(v=>v[1]);
+ const tx0=Math.floor(lon2tx(Math.min(...lons),Z)),tx1=Math.floor(lon2tx(Math.max(...lons),Z));
+ const ty0=Math.floor(lat2ty(Math.max(...lats),Z)),ty1=Math.floor(lat2ty(Math.min(...lats),Z));
+ const nx=tx1-tx0+1,ny=ty1-ty0+1;
+ const cv=document.createElement('canvas');cv.width=nx*256;cv.height=ny*256;
+ const ctx=cv.getContext('2d');ctx.fillStyle='#dfe6e9';ctx.fillRect(0,0,cv.width,cv.height);
+ const jobs=[];
+ for(let tx=tx0;tx<=tx1;tx++)for(let ty=ty0;ty<=ty1;ty++){
+  const url=BASEMAPS[key].url.replace('{z}',Z).replace('{x}',tx).replace('{y}',ty);
+  jobs.push(new Promise(res=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>{ctx.drawImage(im,(tx-tx0)*256,(ty-ty0)*256);res()};im.onerror=()=>res();im.src=url}));
+ }
+ // Relieve del entorno: mosaicos de elevación Terrarium (AWS Open Data, ~SRTM), mismos índices de mosaico.
+ const dem=document.createElement('canvas');dem.width=cv.width;dem.height=cv.height;const dctx=dem.getContext('2d',{willReadFrequently:true});
+ for(let tx=tx0;tx<=tx1;tx++)for(let ty=ty0;ty<=ty1;ty++){
+  jobs.push(fetch(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${Z}/${tx}/${ty}.png`).then(r=>r.ok?r.blob():null).then(b=>b&&createImageBitmap(b)).then(bm=>{if(bm)dctx.drawImage(bm,(tx-tx0)*256,(ty-ty0)*256)}).catch(()=>{}));
+ }
+ await Promise.all(jobs);
+ const demPx=dctx.getImageData(0,0,dem.width,dem.height).data;
+ const demAt=(px,py)=>{const x=Math.min(dem.width-1,Math.max(0,Math.round(px))),y=Math.min(dem.height-1,Math.max(0,Math.round(py)));const i=(y*dem.width+x)*4;
+  if(demPx[i+3]===0)return null;return demPx[i]*256+demPx[i+1]+demPx[i+2]/256-32768};
+ const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=renderer.capabilities.getMaxAnisotropy();
+ // Plano bajo el terreno; cada vértice se reproyecta EPSG:9377 -> Web Mercator para ubicar la textura.
+ const g=new THREE.PlaneGeometry(x1-x0,z1-z0,120,320);g.rotateX(-Math.PI/2);g.translate((x0+x1)/2,lb.min.y-5,(z0+z1)/2);
+ const p=g.attributes.position,uv=g.attributes.uv;
+ for(let i=0;i<p.count;i++){
+  const[lon,lat]=toLonLat(p.getX(i),p.getZ(i));const fx=lon2tx(lon,Z)-tx0,fy=lat2ty(lat,Z)-ty0;
+  uv.setXY(i,fx/nx,1-fy/ny);
+  // 120 m por debajo del relieve SRTM (que incluye edificios y árboles) para que el MDT 2025 quede siempre encima.
+  const e=demAt(fx*256,fy*256);p.setY(i,(e===null||e<1000?lb.min.y:e)-BASE_DROP);
+ }
+ uv.needsUpdate=true;p.needsUpdate=true;g.computeVertexNormals();
+ const mesh=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:tex}));mesh.name='mapa_base_'+key;
+ return mesh;
+}
+async function setBasemap(key){
+ const attr=document.getElementById('attribution');
+ if(basemapMesh){basemapMesh.visible=false;basemapMesh=null}
+ if(key==='none'||!terrain||!localBounds){attr.textContent='';return}
+ attr.textContent='Cargando mapa base…';
+ try{
+  if(!basemapCache[key]){basemapCache[key]=await buildBasemap(key);terrain.add(basemapCache[key])}
+  if(document.getElementById('basemap').value!==key)return;
+  basemapMesh=basemapCache[key];basemapMesh.visible=true;attr.textContent=BASEMAPS[key].attr;
+ }catch(e){console.error(e);attr.textContent='No se pudo cargar el mapa base'}
+}
+document.getElementById('basemap').addEventListener('change',e=>setBasemap(e.target.value));
+
+// ===== Flecha de norte (gira con la cámara) =====
+const needle=document.getElementById('needle');
+const _a=new THREE.Vector3(),_b=new THREE.Vector3(),NORTH=new THREE.Vector3(0,0,-1000);
+function updateCompass(){
+ if(!center)return;
+ _a.copy(center).project(camera);_b.copy(center).add(NORTH).project(camera);
+ const dx=(_b.x-_a.x)*innerWidth,dy=(_b.y-_a.y)*innerHeight;
+ if(Math.hypot(dx,dy)>1e-6)needle.style.transform=`rotate(${Math.atan2(dx,dy)}rad)`;
+}
+
 function showError(message){loading.style.display='none';errorDiv.textContent='Error al cargar el modelo: '+message;errorDiv.style.display='block';console.error(message)}
-function fitView(top=false){if(!terrain||!size||!center)return;const dim=Math.max(size.x,size.y,size.z,1);const distance=dim*1.8;const direction=top?new THREE.Vector3(0,1,0):new THREE.Vector3(.6,.8,.65).normalize();camera.position.copy(center).addScaledVector(direction,distance);camera.up.set(0,0,-1);controls.target.copy(center);camera.near=Math.max(.1,distance/10000);camera.far=Math.max(100000,distance*10);camera.updateProjectionMatrix();controls.minDistance=Math.max(10,dim/100);controls.maxDistance=dim*8;controls.update()}
+function fitView(top=false){if(!terrain||!size||!center)return;const dim=Math.max(size.x,size.y,size.z,1);const distance=dim*1.8;const direction=top?new THREE.Vector3(0,1,0.002).normalize():new THREE.Vector3(.25,.75,.65).normalize();camera.position.copy(center).addScaledVector(direction,distance);camera.up.set(0,1,0);controls.target.copy(center);camera.near=Math.max(.1,distance/10000);camera.far=Math.max(100000,distance*10);camera.updateProjectionMatrix();controls.minDistance=Math.max(10,dim/100);controls.maxDistance=dim*8;controls.update()}
 document.getElementById('reset').addEventListener('click',()=>fitView(false));
 document.getElementById('top').addEventListener('click',()=>fitView(true));
 async function loadTerrain(){try{
@@ -52,6 +206,8 @@ async function loadTerrain(){try{
  const originalBounds=new THREE.Box3().setFromObject(terrain);
  if(originalBounds.isEmpty())throw new Error('El GLB no tiene límites válidos.');
  const originalCenter=originalBounds.getCenter(new THREE.Vector3());
+ terrain.traverse(n=>{if(n.isMesh)applyAnalysis(n,originalBounds.min.y,originalBounds.max.y)});updateLegend();
+ localBounds=originalBounds.clone();
  // Centrar el grupo usando sus límites reales; conservar el relieve original.
  terrain.position.sub(originalCenter);terrain.updateMatrixWorld(true);
  bounds=new THREE.Box3().setFromObject(terrain);
@@ -59,10 +215,10 @@ async function loadTerrain(){try{
  size=bounds.getSize(new THREE.Vector3());
  if(![size.x,size.y,size.z].every(Number.isFinite)||Math.max(size.x,size.y,size.z)<=0)throw new Error('Dimensiones inválidas del modelo.');
  stats.textContent=`${meshCount} malla(s) · ${vertexCount.toLocaleString('es-CO')} vértices · ${Math.round(size.x/1000)} × ${Math.round(size.z/1000)} km aprox.`;
- fitView(false);loading.style.display='none';errorDiv.style.display='none';console.info('Modelo cargado',{meshCount,vertexCount,size,center});
+ fitView(false);setBasemap(document.getElementById('basemap').value);loading.style.display='none';errorDiv.style.display='none';console.info('Modelo cargado',{meshCount,vertexCount,size,center});
  }catch(err){showError(err?.message||String(err));console.error(err)}}
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
-function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}animate();loadTerrain();
+function animate(){requestAnimationFrame(animate);controls.update();updateCompass();renderer.render(scene,camera)}animate();loadTerrain();
 </script>
 </body>
 </html>

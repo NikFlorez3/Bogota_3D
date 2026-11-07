@@ -1,181 +1,68 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Bogotá 3D — Modelo Digital del Terreno 2025</title>
-    <style>
-        *{box-sizing:border-box}
-        body{margin:0;overflow:hidden;font:14px system-ui,Arial,sans-serif;color:white}
-        canvas{display:block;width:100vw;height:100vh}
-        .top{position:absolute;top:14px;left:14px;z-index:2;background:#172632dd;padding:14px 16px;border-radius:10px;max-width:min(480px,calc(100vw - 28px));pointer-events:none}
-        h1{font-size:17px;margin:0 0 5px}
-        p{margin:3px 0;font-size:12px;line-height:1.5}
-        .actions{position:absolute;top:14px;right:14px;z-index:3;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
-        button{cursor:pointer;border:0;border-radius:7px;padding:10px 12px;background:#fff;color:#1b3443;font-weight:600}
-        button:hover{background:#e1f2ff}
-        .bottom{position:absolute;bottom:14px;left:14px;z-index:2;background:#172632d9;padding:10px 12px;border-radius:8px;font-size:12px;max-width:calc(100vw - 28px)}
-        #status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;background:#172632e8;padding:15px 20px;border-radius:8px;max-width:85vw;overflow-wrap:anywhere;text-align:center}
-        #error{display:none;background:#8e2424ee}
-        #status[hidden]{display:none}
-        #error[hidden]{display:none}
-        @media(max-width:700px){.top{top:65px}.actions{left:14px;right:auto;top:10px}h1{font-size:15px}}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bogotá 3D — CORREGIDO V2</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui,Arial,sans-serif;background:#1a1a2e;color:#fff}
+#globe{display:block;width:100vw;height:100vh}
+#loading,#error{position:absolute;z-index:10;top:50%;left:50%;transform:translate(-50%,-50%);padding:1.2rem 1.6rem;background:#111d;color:#fff;border-radius:8px;max-width:85vw;text-align:center}
+#error{display:none;background:#b62c23}
+#info{position:absolute;top:12px;left:12px;z-index:5;background:#101826d9;padding:12px;border-radius:8px;max-width:330px;line-height:1.5}
+#toolbar{position:absolute;right:12px;top:12px;z-index:5;display:flex;gap:8px}
+button{padding:9px 12px;border:0;border-radius:6px;cursor:pointer;background:#fff;color:#172233}
+#stats{position:absolute;bottom:12px;left:12px;z-index:5;background:#101826d9;padding:8px 11px;border-radius:6px;font-size:12px}
+</style>
 </head>
 <body>
-    <div class="top">
-        <h1>Bogotá 3D — Modelo Digital del Terreno 2025</h1>
-        <p>Sector de cinco tiles MDT 2025 (0_2 a 4_2) · EPSG:9377 · Resolución original: 20 m/píxel</p>
-        <p>Fuente del MDT: IDECA / UAECD. La malla muestra el sector continuo desde los Cerros Orientales hasta el área urbana.</p>
-    </div>
-    <div class="actions">
-        <button id="reset" type="button">Restablecer vista</button>
-        <button id="top" type="button">Vista superior</button>
-    </div>
-    <div class="bottom">Arrastrar: girar · Rueda: acercar/alejar · Clic derecho: desplazar · <span id="stats">Esperando modelo…</span></div>
-    <div id="status">Cargando modelo 3D…</div>
-    <div id="error" role="alert" hidden></div>
-    <canvas id="globe"></canvas>
-
-    <script type="importmap">
-        {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xa7cce3);
-        const camera = new THREE.PerspectiveCamera(45,innerWidth/innerHeight,1,300000);
-        const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
-        renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-        renderer.setSize(innerWidth,innerHeight);
-        document.body.appendChild(renderer.domElement);
-
-        const controls = new OrbitControls(camera,renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = .07;
-        controls.screenSpacePanning = true;
-        controls.minDistance = 25;
-        controls.maxDistance = 300000;
-
-        // ILUMINACIÓN MEJORADA para resaltar relieve
-        scene.add(new THREE.HemisphereLight(0xffffff,0x6a7480,2.1));
-        const sun = new THREE.DirectionalLight(0xffffff,2.2);
-        sun.position.set(10000,30000,15000);
-        // Shadow para resaltar contours del relieve
-        sun.castShadow = true;
-        sun.shadow.mapSize.width = 4096;
-        sun.shadow.mapSize.height = 4096;
-        sun.shadow.bias = -0.0001;
-        scene.add(sun);
-
-        let terrain=null, bounds=null, size=null, center=null;
-
-        // Panel informativo mejorado
-        const infoPanel = {
-            init(){
-                this.div = document.createElement('div');
-                this.div.style.position = 'absolute';
-                this.div.style.bottom = '80px';
-                this.div.style.left = '14px';
-                this.div.style.background = 'rgba(0,0,0,0.7)';
-                this.div.style.color = '#cfe2f3';
-                this.div.style.padding = '10px 12px';
-                this.div.style.borderRadius = '6px';
-                this.div.style.fontSize = '12px';
-                this.div.style.lineHeight = '1.5';
-                this.div.style.maxWidth = 'calc(100vw - 28px)';
-                this.div.style.pointerEvents = 'none';
-                this.div.style.zIndex = '10';
-                this.div.innerHTML = `
-                    <strong>Sector continuo</strong><br>
-                    5 tiles MDT 2025: 0_2, 1_2, 2_2, 3_2, 4_2<br>
-                    Cobertura: Cerros Orientales → Área Urbana<br>
-                    Datos: IDECA / UAECD (EPSG:9377)<br>
-                    Resolución: 20 m/píxel · Aprox. ${Math.round(116/1000)} × ${Math.round(60/1000)} km<br>
-                    <small>Solo se representa el sector de cinco tiles seleccionados.</small>
-                `;
-                document.body.appendChild(this.div);
-            }
-        };
-
-        infoPanel.init();
-
-        function fitView(top=false){
-            if(!terrain||!bounds)return;
-            const dim=Math.max(size.x,size.y,size.z);
-            const fov=THREE.MathUtils.degToRad(camera.fov);
-            const fitHeight=Math.max(size.y,size.z);
-            const fitWidth=Math.max(size.x,size.z);
-            const d=Math.max(fitHeight/(2*Math.tan(fov/2)),fitWidth/(2*Math.tan(fov/2)*camera.aspect),dim*.65)*1.65;
-            const direction=top?new THREE.Vector3(0,1,.001):new THREE.Vector3(.65,.95,1).normalize();
-            controls.target.copy(center);
-            camera.position.copy(center).addScaledVector(direction,d);
-            camera.near=Math.max(.5,d/10000);
-            camera.far=Math.max(300000,d*12);
-            controls.minDistance=Math.max(5,dim*.001);
-            controls.maxDistance=Math.max(dim*8,d*3);
-            controls.update();
-        }
-
-        async function loadTerrain(){
-            const status=document.getElementById('status');
-            const error=document.getElementById('error');
-            try{
-                const response=await fetch('./bogota_3d_continuo.glb',{method:'HEAD',cache:'no-store'});
-                if(!response.ok)throw new Error('El archivo bogota_3d_continuo.glb no está disponible (HTTP '+response.status+'). Comprueba que esté en la misma carpeta que index.html.');
-                const gltf=await new GLTFLoader().loadAsync('./bogota_3d_continuo.glb');
-                terrain=gltf.scene;
-                let meshCount=0,vertexCount=0;
-                terrain.traverse(node=>{
-                    if(!node.isMesh)return;
-                    meshCount++;
-                    vertexCount+=node.geometry?.attributes?.position?.count||0;
-                    node.frustumCulled=false;
-                    if(node.material){
-                        const materials=Array.isArray(node.material)?node.material:[node.material];
-                        for(const m of materials){m.side=THREE.DoubleSide;m.needsUpdate=true;}
-                    }
-                });
-                if(meshCount===0)throw new Error('El GLB se abrió, pero no contiene mallas 3D.');
-                // Centrar el grupo completo, sin alterar la posición relativa de los tiles
-                const originalBounds=new THREE.Box3().setFromObject(terrain);
-                if(originalBounds.isEmpty())throw new Error('El GLB no tiene geometría visible.');
-                const originalCenter=originalBounds.getCenter(new THREE.Vector3());
-                terrain.position.sub(originalCenter);
-                scene.add(terrain);
-                bounds=new THREE.Box3().setFromObject(terrain);
-                center=bounds.getCenter(new THREE.Vector3());
-                size=bounds.getSize(new THREE.Vector3());
-                if(!Number.isFinite(size.length())||size.length()===0)throw new Error('Las dimensiones del GLB no son válidas.');
-                fitView();
-                document.getElementById('stats').textContent=`${meshCount} malla(s) · ${vertexCount.toLocaleString('es-CO')} vértices · ${Math.round(size.x/1000)} × ${Math.round(Math.max(size.y,size.z)/1000)} km aprox.`;
-                status.hidden=true;
-                error.hidden=true;
-                console.info('GLB cargado', {meshCount,vertexCount,size,originalCenter});
-            }catch(e){
-                console.error('Fallo de carga o procesamiento:',e);
-                status.hidden=true;
-                error.textContent='No se pudo mostrar el modelo: '+e.message;
-                error.hidden=false;
-                error.style.display='block';
-            }
-        }
-
-        document.getElementById('reset').addEventListener('click',()=>fitView(false));
-        document.getElementById('top').addEventListener('click',()=>fitView(true));
-        addEventListener('resize',()=>{
-            camera.aspect=innerWidth/innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(innerWidth,innerHeight);
-            if(terrain)fitView(false);
-        });
-        function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}
-        camera.position.set(20000,15000,25000);
-        controls.update();
-        loadTerrain();
-    </script>
+<canvas id="globe"></canvas>
+<div id="loading">Cargando terreno 3D…</div>
+<div id="error" role="alert"></div>
+<div id="info"><strong>Bogotá 3D — Modelo Digital del Terreno 2025 (CORREGIDO V2)</strong><div>Sector de 5 tiles · Fuente: IDECA / UAECD</div><div>Visualización parcial, no toda Bogotá.</div></div>
+<div id="toolbar"><button id="reset" type="button">Restablecer vista</button><button id="top" type="button">Vista superior</button></div>
+<div id="stats">Esperando modelo…</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const canvas=document.getElementById('globe');
+const loading=document.getElementById('loading');
+const errorDiv=document.getElementById('error');
+const stats=document.getElementById('stats');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xa8cce6);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,1,1000000);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.08;controls.screenSpacePanning=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x65716a,2));
+const sun=new THREE.DirectionalLight(0xffffff,2);sun.position.set(5000,10000,7000);scene.add(sun);
+let terrain=null,bounds=null,size=null,center=null;
+function showError(message){loading.style.display='none';errorDiv.textContent='Error al cargar el modelo: '+message;errorDiv.style.display='block';console.error(message)}
+function fitView(top=false){if(!terrain||!size||!center)return;const dim=Math.max(size.x,size.y,size.z,1);const distance=dim*1.8;const direction=top?new THREE.Vector3(0,1,0):new THREE.Vector3(.6,.8,.65).normalize();camera.position.copy(center).addScaledVector(direction,distance);camera.up.set(0,0,-1);controls.target.copy(center);camera.near=Math.max(.1,distance/10000);camera.far=Math.max(100000,distance*10);camera.updateProjectionMatrix();controls.minDistance=Math.max(10,dim/100);controls.maxDistance=dim*8;controls.update()}
+document.getElementById('reset').addEventListener('click',()=>fitView(false));
+document.getElementById('top').addEventListener('click',()=>fitView(true));
+async function loadTerrain(){try{
+ const gltf=await new GLTFLoader().loadAsync('./bogota_3d_continuo.glb');
+ terrain=gltf.scene;let meshCount=0,vertexCount=0;
+ terrain.traverse(node=>{if(!node.isMesh)return;meshCount++;if(node.geometry?.attributes?.position)vertexCount+=node.geometry.attributes.position.count;node.frustumCulled=false;const mats=Array.isArray(node.material)?node.material:[node.material];for(const m of mats){if(m){m.side=THREE.DoubleSide;m.needsUpdate=true}}});
+ if(!meshCount)throw new Error('El GLB no contiene mallas visibles.');
+ scene.add(terrain);terrain.updateMatrixWorld(true);
+ const originalBounds=new THREE.Box3().setFromObject(terrain);
+ if(originalBounds.isEmpty())throw new Error('El GLB no tiene límites válidos.');
+ const originalCenter=originalBounds.getCenter(new THREE.Vector3());
+ // Centrar el grupo usando sus límites reales; conservar el relieve original.
+ terrain.position.sub(originalCenter);terrain.updateMatrixWorld(true);
+ bounds=new THREE.Box3().setFromObject(terrain);
+ center=bounds.getCenter(new THREE.Vector3());
+ size=bounds.getSize(new THREE.Vector3());
+ if(![size.x,size.y,size.z].every(Number.isFinite)||Math.max(size.x,size.y,size.z)<=0)throw new Error('Dimensiones inválidas del modelo.');
+ stats.textContent=`${meshCount} malla(s) · ${vertexCount.toLocaleString('es-CO')} vértices · ${Math.round(size.x/1000)} × ${Math.round(size.z/1000)} km aprox.`;
+ fitView(false);loading.style.display='none';errorDiv.style.display='none';console.info('Modelo cargado',{meshCount,vertexCount,size,center});
+ }catch(err){showError(err?.message||String(err));console.error(err)}}
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}animate();loadTerrain();
+</script>
 </body>
 </html>

@@ -163,7 +163,7 @@ body.panel-closed #toggle svg{transform:rotate(180deg)}
 
  <footer class="p-foot">
   <div id="stats"></div>
-  <div class="crs">Fuente: MDT 2025 · IDECA / UAECD<br>EPSG:9377 · MAGNA-SIRGAS Origen Nacional</div>
+  <div class="crs">Fuente: MDT 2025 · IDECA / UAECD · Procesado con QGIS y Blender (agentes MCP)<br>EPSG:9377 · MAGNA-SIRGAS Origen Nacional</div>
  </footer>
 
  <!-- Controles nativos que usa el código del visor -->
@@ -363,8 +363,9 @@ function fitView(top=false){if(!terrain||!size||!center)return;const dim=Math.ma
 document.getElementById('reset').addEventListener('click',()=>fitView(false));
 document.getElementById('top').addEventListener('click',()=>fitView(true));
 async function loadTerrain(){try{
- // Usa el modelo completo si existe; si no, la franja de 5 tiles.
+ // Orden de preferencia: modelo exportado desde Blender (MCP), modelo completo y, de respaldo, la franja de 5 tiles.
  const MODELOS=[
+  {file:'./bogota_3d_blender.glb',txt:'Distrito Capital completo: zona urbana, Cerros Orientales y ruralidad hasta Sumapaz.'},
   {file:'./bogota_3d_completo.glb',txt:'Distrito Capital completo: zona urbana, Cerros Orientales y ruralidad hasta Sumapaz.'},
   {file:'./bogota_3d_continuo.glb',txt:'Franja occidental de 20 × 100 km (sin Cerros Orientales).'}];
  let gltf=null;

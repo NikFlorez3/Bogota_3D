@@ -1,0 +1,30 @@
+# Ignorar archivos grandes y temporales
+*.npy
+*.tif
+*.tiff
+*.sid
+*.xml
+*.json
+*.glb
+*.blend
+*.qgz
+*.gpkg
+*.dat
+
+# Ignorar directorios
+mosaicos/
+tiles/
+derivados/
+blender_tiles/
+__pycache__/
+
+# Ignorar archivos de log y reporte
+*.log
+*.txt
+*.py
+*.md
+
+# Pero mantener el visor y el GLB principal
+!web/visor/index.html
+!web/visor/bogota_3d_continuo.glb
+!README.md

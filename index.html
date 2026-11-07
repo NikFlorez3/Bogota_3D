@@ -4,37 +4,202 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bogotá 3D — Modelo Digital del Terreno 2025</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui,Arial,sans-serif;background:#24272d;color:#fff}
-#globe{display:block;width:100vw;height:100vh}
-#loading,#error{position:absolute;z-index:10;top:50%;left:50%;transform:translate(-50%,-50%);padding:1.2rem 1.6rem;background:#111d;color:#fff;border-radius:8px;max-width:85vw;text-align:center}
-#error{display:none;background:#b62c23}
-#info{position:absolute;top:12px;left:12px;z-index:5;background:#101826d9;padding:12px;border-radius:8px;max-width:330px;line-height:1.5}
-#toolbar{position:absolute;right:12px;top:12px;z-index:5;display:flex;gap:8px}
-button{padding:9px 12px;border:0;border-radius:6px;cursor:pointer;background:#fff;color:#172233}
-#stats{position:absolute;bottom:12px;left:12px;z-index:5;background:#101826d9;padding:8px 11px;border-radius:6px;font-size:12px}
-select{padding:6px;border-radius:5px;border:0}
-.tb{display:flex;align-items:center;gap:6px;background:#101826d9;padding:4px 10px;border-radius:6px;font-size:13px}
-#toolbar{flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}
-@media (max-width:1100px){#info{top:auto;bottom:52px;max-width:280px;font-size:12px}}
-#compass{position:absolute;right:12px;top:64px;z-index:5;width:54px;height:54px;border-radius:50%;background:#101826d9;display:flex;align-items:center;justify-content:center}
-#needle{width:40px;height:40px}
-#attribution{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:#1a2533;background:#ffffffb3;padding:1px 6px;border-radius:3px}
+:root{
+ --bg:#1b1e23;--panel:rgba(20,23,28,.86);--panel-solid:#14171c;--line:rgba(255,255,255,.08);
+ --text:#eef1f5;--muted:#9aa3ae;--faint:#6b7480;--accent:#d9b26f;--accent-ink:#1b1e23;
+ --chip:rgba(255,255,255,.06);--chip-hover:rgba(255,255,255,.11);--radius:14px
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+ font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+#globe{display:block;width:100vw;height:100vh;outline:none}
+button{font:inherit;color:inherit}
+
+/* ---------- Panel lateral ---------- */
+#panel{position:absolute;top:16px;left:16px;bottom:16px;width:320px;z-index:5;display:flex;flex-direction:column;
+ background:var(--panel);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+ border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 18px 40px rgba(0,0,0,.35);
+ transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .25s}
+#panel.collapsed{transform:translateX(calc(-100% - 24px));opacity:0;pointer-events:none}
+.p-head{padding:20px 20px 16px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.p-head h1{margin:6px 0 6px;font-size:22px;font-weight:700;letter-spacing:-.01em}
+.p-head p{margin:0;color:var(--muted);font-size:13px}
+.p-body{flex:1;overflow:auto;padding:6px 20px 12px;scrollbar-width:thin}
+.sec{padding:14px 0;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+.sec-label{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.seg{display:flex;gap:4px;background:rgba(0,0,0,.25);padding:4px;border-radius:10px}
+.seg button{flex:1;border:0;background:transparent;padding:8px 6px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:background .15s,color .15s}
+.seg button:hover{color:var(--text);background:var(--chip)}
+.seg button.on{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.switch{position:relative;display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-weight:500}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch .track{width:38px;height:22px;border-radius:999px;background:rgba(255,255,255,.15);position:relative;transition:background .2s;flex:none}
+.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+.switch input:checked+.track{background:var(--accent)}
+.switch input:checked+.track::after{transform:translateX(16px)}
+.switch input:focus-visible+.track{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;gap:4px;margin-top:10px;transition:opacity .2s}
+.chips.off{opacity:.35;pointer-events:none}
+.chips button{flex:1;border:1px solid var(--line);background:var(--chip);padding:6px 0;border-radius:8px;cursor:pointer;font-size:12px;color:var(--muted)}
+.chips button.on{border-color:var(--accent);color:var(--accent);background:rgba(217,178,111,.1)}
+.views{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--chip);padding:9px 10px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--chip-hover);border-color:rgba(255,255,255,.16)}
+.btn svg{width:16px;height:16px;opacity:.8}
+
+/* Leyenda */
+.lg-title{font-size:13px;font-weight:600;margin-bottom:8px}
+.lg-ramp{height:10px;border-radius:5px;background:linear-gradient(90deg,#5c9452,#bfc773 40%,#a8804f 80%,#f2f2f2)}
+.lg-scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:5px;font-variant-numeric:tabular-nums}
+.lg-classes{display:grid;gap:5px}
+.lg-classes div{display:grid;grid-template-columns:14px 64px 1fr;align-items:center;gap:8px;font-size:12px}
+.lg-classes i{width:14px;height:14px;border-radius:4px}
+.lg-classes em{font-style:normal;color:var(--muted)}
+.lg-note{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--muted)}
+.lg-line{width:18px;height:0;border-top:2px solid #6b4c2a;flex:none}
+
+/* Pie del panel */
+.p-foot{padding:14px 20px 16px;border-top:1px solid var(--line)}
+#stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+#stats div{background:rgba(0,0,0,.22);border-radius:8px;padding:7px 8px}
+#stats b{display:block;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+#stats span{font-size:10.5px;color:var(--faint)}
+.crs{font-size:11px;color:var(--faint);line-height:1.5}
+
+/* Botón para mostrar/ocultar panel */
+#toggle{position:absolute;top:16px;left:348px;z-index:6;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
+ background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);cursor:pointer;display:grid;place-items:center;transition:left .35s cubic-bezier(.2,.8,.2,1)}
+#toggle svg{width:18px;height:18px;transition:transform .3s}
+body.panel-closed #toggle{left:16px}
+body.panel-closed #toggle svg{transform:rotate(180deg)}
+
+/* Brújula, ayuda y atribución */
+#compass{position:absolute;right:20px;bottom:44px;z-index:5;width:56px;height:56px;border-radius:50%;background:var(--panel);
+ border:1px solid var(--line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:grid;place-items:center;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+#needle{width:42px;height:42px}
+#hint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:4;font-size:12px;color:var(--muted);background:var(--panel);
+ border:1px solid var(--line);padding:6px 12px;border-radius:999px;white-space:nowrap;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#attribution{position:absolute;right:8px;bottom:6px;z-index:4;font-size:10px;color:var(--faint)}
 #attribution:empty{display:none}
-#legend{position:absolute;bottom:12px;right:12px;z-index:5;background:#101826d9;padding:10px 12px;border-radius:6px;font-size:12px;line-height:1.7}
-#legend i{display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:middle;border-radius:2px}
+
+/* Carga y error */
+#loading{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:var(--bg);transition:opacity .5s}
+#loading.done{opacity:0;pointer-events:none}
+.ld{display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--muted);font-size:13px}
+.spinner{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:21;max-width:min(440px,85vw);padding:16px 20px;border-radius:12px;background:#3a1618;border:1px solid #8a2c2f;color:#ffd9d9;text-align:center}
+.hidden-ctrl{display:none}
+
+/* Pantallas pequeñas: el panel pasa a ser una hoja inferior */
+@media (max-width:760px){
+ #panel{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:62vh}
+ #panel.collapsed{transform:translateY(calc(100% + 24px))}
+ #toggle{top:auto;left:auto!important;right:12px;bottom:calc(62vh + 18px)}
+ body.panel-closed #toggle{bottom:16px}
+ #toggle svg{transform:rotate(-90deg)}
+ body.panel-closed #toggle svg{transform:rotate(90deg)}
+ #compass{top:12px;right:12px;bottom:auto;width:46px;height:46px}
+ #hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
-<canvas id="globe"></canvas>
-<div id="loading">Cargando terreno 3D…</div>
-<div id="error" role="alert"></div>
-<div id="info"><strong>Bogotá 3D — Modelo Digital del Terreno 2025</strong><div>Franja de 20 × 100 km: occidente urbano de Bogotá y zona rural del sur.</div><div>No incluye los Cerros Orientales.</div><div style="opacity:.8;font-size:12px">MDT IDECA / UAECD · EPSG:9377 MAGNA-SIRGAS Origen Nacional</div></div>
-<div id="toolbar"><label class="tb">Mapa base <select id="basemap"><option value="satelite" selected>Satélite</option><option value="calles">Calles</option><option value="none">Ninguno</option></select></label><label class="tb">Capa <select id="layer"><option value="0">Elevación</option><option value="1">Pendiente</option></select></label><label class="tb"><input type="checkbox" id="contours"> Curvas cada <select id="interval"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select> m</label><button id="reset" type="button">Restablecer vista</button><button id="top" type="button">Vista superior</button></div>
-<div id="legend"></div>
-<div id="compass" title="Norte"><svg id="needle" viewBox="0 0 40 40"><polygon points="20,7 25,21 20,19 15,21" fill="#e74c3c"/><polygon points="20,33 25,21 20,23 15,21" fill="#e8eef5"/><text x="20" y="7" text-anchor="middle" font-size="8" font-weight="700" fill="#fff">N</text></svg></div>
+<canvas id="globe" aria-label="Modelo 3D del terreno de Bogotá"></canvas>
+
+<aside id="panel" aria-label="Controles del visor">
+ <header class="p-head">
+  <div class="eyebrow">Modelo Digital del Terreno 2025</div>
+  <h1>Bogotá 3D</h1>
+  <p id="cobertura">Cargando modelo…</p>
+ </header>
+
+ <div class="p-body">
+  <section class="sec">
+   <div class="sec-label">Mapa base</div>
+   <div class="seg" data-for="basemap">
+    <button type="button" data-v="satelite" class="on">Satélite</button>
+    <button type="button" data-v="calles">Calles</button>
+    <button type="button" data-v="none">Ninguno</button>
+   </div>
+  </section>
+
+  <section class="sec">
+   <div class="sec-label">Análisis del relieve</div>
+   <div class="seg" data-for="layer">
+    <button type="button" data-v="0" class="on">Elevación</button>
+    <button type="button" data-v="1">Pendiente</button>
+   </div>
+   <div style="margin-top:14px" class="row">
+    <label class="switch"><input type="checkbox" id="contours"><span class="track"></span>Curvas de nivel</label>
+   </div>
+   <div class="chips off" id="interval-chips" data-for="interval">
+    <button type="button" data-v="25">25 m</button>
+    <button type="button" data-v="50" class="on">50 m</button>
+    <button type="button" data-v="100">100 m</button>
+   </div>
+  </section>
+
+  <section class="sec">
+   <div class="sec-label">Leyenda</div>
+   <div id="legend"></div>
+  </section>
+
+  <section class="sec">
+   <div class="sec-label">Vista</div>
+   <div class="views">
+    <button class="btn" id="reset" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Restablecer</button>
+    <button class="btn" id="top" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 7v10M7 12h10"/></svg>Vista cenital</button>
+   </div>
+  </section>
+ </div>
+
+ <footer class="p-foot">
+  <div id="stats"></div>
+  <div class="crs">Fuente: MDT 2025 · IDECA / UAECD<br>EPSG:9377 · MAGNA-SIRGAS Origen Nacional</div>
+ </footer>
+
+ <!-- Controles nativos que usa el código del visor -->
+ <select id="basemap" class="hidden-ctrl"><option value="satelite" selected>Satélite</option><option value="calles">Calles</option><option value="none">Ninguno</option></select>
+ <select id="layer" class="hidden-ctrl"><option value="0">Elevación</option><option value="1">Pendiente</option></select>
+ <select id="interval" class="hidden-ctrl"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select>
+</aside>
+
+<button id="toggle" type="button" aria-label="Mostrar u ocultar panel" title="Mostrar u ocultar panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+
+<div id="compass" title="Norte"><svg id="needle" viewBox="0 0 40 40"><polygon points="20,7 25,21 20,19 15,21" fill="#e5534b"/><polygon points="20,33 25,21 20,23 15,21" fill="#e8eef5"/><text x="20" y="6.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff" font-family="Inter,sans-serif">N</text></svg></div>
+<div id="hint">Arrastra para girar · rueda para acercar · clic derecho para desplazar</div>
 <div id="attribution"></div>
-<div id="stats">Esperando modelo…</div>
+
+<div id="loading"><div class="ld"><div class="spinner"></div><span>Cargando terreno 3D…</span></div></div>
+<div id="error" role="alert"></div>
+
+<script>
+// Botones segmentados y chips: actualizan los controles nativos y avisan al visor.
+document.querySelectorAll('[data-for]').forEach(group=>{
+ const target=document.getElementById(group.dataset.for);
+ group.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  group.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  target.value=b.dataset.v;target.dispatchEvent(new Event('change'));
+ }));
+});
+document.getElementById('contours').addEventListener('change',e=>document.getElementById('interval-chips').classList.toggle('off',!e.target.checked));
+// Panel plegable (en celular empieza cerrado)
+const panel=document.getElementById('panel');
+function setPanel(open){panel.classList.toggle('collapsed',!open);document.body.classList.toggle('panel-closed',!open)}
+document.getElementById('toggle').addEventListener('click',()=>setPanel(panel.classList.contains('collapsed')));
+if(matchMedia('(max-width:760px)').matches)setPanel(false);
+// La ayuda se oculta sola al primer movimiento
+const hint=document.getElementById('hint');
+document.getElementById('globe').addEventListener('pointerdown',()=>{hint.style.transition='opacity .6s';hint.style.opacity='0';setTimeout(()=>hint.remove(),700)},{once:true});
+</script>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
@@ -45,7 +210,7 @@ const canvas=document.getElementById('globe');
 const loading=document.getElementById('loading');
 const errorDiv=document.getElementById('error');
 const stats=document.getElementById('stats');
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x24272d); // fondo gris oscuro
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x1b1e23); // fondo gris oscuro
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,1,1000000);
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
@@ -107,11 +272,11 @@ vec3 rampSlope(float s){
 function updateLegend(){
  const L=document.getElementById('legend');
  if(analysis.uMode.value===1){
-  L.innerHTML='<b>Pendiente</b><br>'+[['#2e8c40','0 – 5°'],['#99cc4d','5 – 15°'],['#fad940','15 – 25°'],['#f28026','25 – 35°'],['#cc261f','> 35°']].map(([c,t])=>`<i style="background:${c}"></i>${t}`).join('<br>');
+  L.innerHTML='<div class="lg-title">Pendiente del terreno</div><div class="lg-classes">'+[['#2e8c40','0–5°','Plano'],['#99cc4d','5–15°','Suave'],['#fad940','15–25°','Moderada'],['#f28026','25–35°','Fuerte'],['#cc261f','> 35°','Muy fuerte']].map(([c,t,d])=>`<div><i style="background:${c}"></i><span>${t}</span><em>${d}</em></div>`).join('')+'</div>';
  }else{
-  L.innerHTML=`<b>Elevación (m s.n.m.)</b><br><i style="width:140px;background:linear-gradient(90deg,#5c9452,#bfc773,#a8804f,#f2f2f2)"></i><br>${Math.round(analysis.uMinE.value)} – ${Math.round(analysis.uMaxE.value)} m`;
+  L.innerHTML=`<div class="lg-title">Elevación (m s.n.m.)</div><div class="lg-ramp"></div><div class="lg-scale"><span>${Math.round(analysis.uMinE.value).toLocaleString('es-CO')}</span><span>${Math.round((analysis.uMinE.value+analysis.uMaxE.value)/2).toLocaleString('es-CO')}</span><span>${Math.round(analysis.uMaxE.value).toLocaleString('es-CO')}</span></div>`;
  }
- if(analysis.uContours.value)L.innerHTML+=`<br>Curvas cada ${analysis.uInterval.value} m · maestras cada ${analysis.uInterval.value*5} m`;
+ if(analysis.uContours.value)L.innerHTML+=`<div class="lg-note"><i class="lg-line"></i>Curvas cada ${analysis.uInterval.value} m · maestras cada ${analysis.uInterval.value*5} m</div>`;
 }
 document.getElementById('layer').addEventListener('change',e=>{analysis.uMode.value=+e.target.value;updateLegend()});
 document.getElementById('contours').addEventListener('change',e=>{analysis.uContours.value=e.target.checked?1:0;updateLegend()});
@@ -193,14 +358,20 @@ function updateCompass(){
  if(Math.hypot(dx,dy)>1e-6)needle.style.transform=`rotate(${Math.atan2(dx,dy)}rad)`;
 }
 
-function showError(message){loading.style.display='none';errorDiv.textContent='Error al cargar el modelo: '+message;errorDiv.style.display='block';console.error(message)}
-function fitView(top=false){if(!terrain||!size||!center)return;const dim=Math.max(size.x,size.y,size.z,1);const distance=dim*1.8;const direction=top?new THREE.Vector3(0,1,0.002).normalize():new THREE.Vector3(.25,.75,.65).normalize();camera.position.copy(center).addScaledVector(direction,distance);camera.up.set(0,1,0);controls.target.copy(center);camera.near=Math.max(.1,distance/10000);camera.far=Math.max(100000,distance*10);camera.updateProjectionMatrix();controls.minDistance=Math.max(10,dim/100);controls.maxDistance=dim*8;controls.update()}
+function showError(message){loading.classList.add('done');errorDiv.textContent='Error al cargar el modelo: '+message;errorDiv.style.display='block';console.error(message)}
+function fitView(top=false){if(!terrain||!size||!center)return;const dim=Math.max(size.x,size.y,size.z,1);const distance=dim*1.5;const direction=top?new THREE.Vector3(0,1,0.002).normalize():new THREE.Vector3(.25,.75,.65).normalize();camera.position.copy(center).addScaledVector(direction,distance);camera.up.set(0,1,0);controls.target.copy(center);camera.near=Math.max(.1,distance/10000);camera.far=Math.max(100000,distance*10);applyViewOffset();controls.minDistance=Math.max(10,dim/100);controls.maxDistance=dim*8;controls.update()}
 document.getElementById('reset').addEventListener('click',()=>fitView(false));
 document.getElementById('top').addEventListener('click',()=>fitView(true));
 async function loadTerrain(){try{
- const gltf=await new GLTFLoader().loadAsync('./bogota_3d_continuo.glb');
+ // Usa el modelo completo si existe; si no, la franja de 5 tiles.
+ const MODELOS=[
+  {file:'./bogota_3d_completo.glb',txt:'Distrito Capital completo: zona urbana, Cerros Orientales y ruralidad hasta Sumapaz.'},
+  {file:'./bogota_3d_continuo.glb',txt:'Franja occidental de 20 × 100 km (sin Cerros Orientales).'}];
+ let gltf=null;
+ for(const m of MODELOS){try{gltf=await new GLTFLoader().loadAsync(m.file);document.getElementById('cobertura').textContent=m.txt;console.info('Modelo:',m.file);break}catch(e){console.warn('No disponible:',m.file)}}
+ if(!gltf)throw new Error('No se encontró ningún archivo GLB del terreno.');
  terrain=gltf.scene;let meshCount=0,vertexCount=0;
- terrain.traverse(node=>{if(!node.isMesh)return;meshCount++;if(node.geometry?.attributes?.position)vertexCount+=node.geometry.attributes.position.count;node.frustumCulled=false;const mats=Array.isArray(node.material)?node.material:[node.material];for(const m of mats){if(m){m.side=THREE.DoubleSide;m.needsUpdate=true}}});
+ terrain.traverse(node=>{if(!node.isMesh)return;meshCount++;if(node.geometry?.attributes?.position)vertexCount+=node.geometry.attributes.position.count;node.frustumCulled=false;if(node.geometry&&!node.geometry.attributes.normal)node.geometry.computeVertexNormals();const mats=Array.isArray(node.material)?node.material:[node.material];for(const m of mats){if(m){m.side=THREE.DoubleSide;m.needsUpdate=true}}});
  if(!meshCount)throw new Error('El GLB no contiene mallas visibles.');
  scene.add(terrain);terrain.updateMatrixWorld(true);
  const originalBounds=new THREE.Box3().setFromObject(terrain);
@@ -214,10 +385,20 @@ async function loadTerrain(){try{
  center=bounds.getCenter(new THREE.Vector3());
  size=bounds.getSize(new THREE.Vector3());
  if(![size.x,size.y,size.z].every(Number.isFinite)||Math.max(size.x,size.y,size.z)<=0)throw new Error('Dimensiones inválidas del modelo.');
- stats.textContent=`${meshCount} malla(s) · ${vertexCount.toLocaleString('es-CO')} vértices · ${Math.round(size.x/1000)} × ${Math.round(size.z/1000)} km aprox.`;
- fitView(false);setBasemap(document.getElementById('basemap').value);loading.style.display='none';errorDiv.style.display='none';console.info('Modelo cargado',{meshCount,vertexCount,size,center});
+ stats.innerHTML=`<div><b>${vertexCount.toLocaleString('es-CO')}</b><span>vértices</span></div><div><b>${Math.round(size.x/1000)} × ${Math.round(size.z/1000)}</b><span>km</span></div><div><b>${Math.round(originalBounds.min.y).toLocaleString('es-CO')}–${Math.round(originalBounds.max.y).toLocaleString('es-CO')}</b><span>m s.n.m.</span></div>`;
+ fitView(false);setBasemap(document.getElementById('basemap').value);loading.classList.add('done');errorDiv.style.display='none';console.info('Modelo cargado',{meshCount,vertexCount,size,center});
  }catch(err){showError(err?.message||String(err));console.error(err)}}
-window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+// Centra el modelo en el espacio libre a la derecha del panel lateral.
+const panelEl=document.getElementById('panel');
+function applyViewOffset(){
+ const w=innerWidth,h=innerHeight,open=!panelEl.classList.contains('collapsed')&&w>760;
+ camera.aspect=w/h;
+ if(open)camera.setViewOffset(w,h,-(panelEl.offsetWidth+16)/2,0,w,h);else camera.clearViewOffset();
+ camera.updateProjectionMatrix();
+}
+new MutationObserver(applyViewOffset).observe(panelEl,{attributes:true,attributeFilter:['class']});
+window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);applyViewOffset()});
+applyViewOffset();
 function animate(){requestAnimationFrame(animate);controls.update();updateCompass();renderer.render(scene,camera)}animate();loadTerrain();
 </script>
 </body>
